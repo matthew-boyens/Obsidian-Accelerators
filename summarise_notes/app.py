@@ -68,6 +68,8 @@ class Prompt:
 
 # %%
 class Document:
+
+    ## Each paragraph must start with --- and contain "Transcript" -> directly above this the summary text will be injected
     
     def __init__(self,filepath,format="podcast"):
 
@@ -88,11 +90,14 @@ class Document:
             
             ## specific to podcast format
             if self.format == "podcast":
-                for para in soup.find_all("p")[1:]:
+                ## Append first element
+                text = soup.find("h2").find_next("p").get_text()
+                self.paragraphs.append(dict(text = text,total_cost=0))
+                ## don't include last element as no text is after it
+                for para in [hr.find_next("p") for hr in soup.find_all("hr")[:-1]]:
                     self.paragraphs.append(dict(text = para.get_text(),total_cost=0))
             else:
                 raise Exception(f"{self.format} is not supported")
-            print("Loaded Document")
     
     def estimated_cost(self,prompts):
         """Given prompts run on text takes up most of the cost, given an estimate off the cost"""
@@ -251,7 +256,7 @@ class Document:
 # %%
 
 
-filepath = f"/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/005 - A Sports Ministry Idea that Actually Reaches People This One Does.md"
+filepath = f"/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/274 – Karl Deisseroth —  Depression, Schizophrenia, and Psychiatry.md"
 filepath
 
 doc = Document(filepath)
@@ -259,7 +264,7 @@ doc = Document(filepath)
 doc.process()
 
 # %%
-doc.process([Prompt("Summary", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points")])
+doc.process([Prompt("Summary V2", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points")])
 
 
 
