@@ -252,7 +252,7 @@ import pandas as pd
 
 # %%
 points = []
-for para in doc.paragraphs].split("\n"):
+for para in doc.paragraphs.split("\n"):
     points.extend(para["Key Points"].split("\n"))
 
 df = pd.DataFrame(points)
