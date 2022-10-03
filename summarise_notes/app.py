@@ -26,9 +26,7 @@ from tqdm import tqdm
 from bs4 import BeautifulSoup
 
 
-MODEL_COST = {"text-davinci-002":0.0200}
-
-DAVANCI_COST = 0.0200
+MODEL_INFO = {"text-davinci-002":{"cost":0.0200, "max_tokens":4000}}
 
 # %%
 with open("secret.txt") as f:
@@ -47,6 +45,28 @@ MAX_INPUT_CHARS
 
 
 # %%
+class Prompt:
+
+    def __init__(self,short,full,model,on):
+
+        self.short = short
+        self.full = full
+        self.model = model
+        self.on = on
+
+    def __eq__(self,other):
+        if isinstance(other,Prompt):
+            return self.short == other.short
+        else:
+            return False
+
+    def __repr__(self) -> str:
+        return f" Prompt({self.short},{self.model},{self.on})"
+    def __str__(self) -> str:
+        return f" Prompt({self.short},{self.model},{self.on})"
+
+
+# %%
 class Document:
     
     def __init__(self,filepath,format="podcast"):
@@ -58,6 +78,7 @@ class Document:
         self.doc_results = dict()
         self.doc_cost = 0
         self.saved = False
+        self.processed_prompts = []
 
         with open(filepath) as f:
             file = f.read()
@@ -79,15 +100,16 @@ class Document:
         tmp = []
         for para in self.paragraphs:
             for prompt in prompts:
-                if prompt["on"] == "text":
-                    tmp.append(len(para["text"])*MODEL_COST[prompt['model']])
+                if prompt.on == "text":
+                    tmp.append(len(para["text"])*MODEL_INFO[prompt.model]["cost"])
         
         return f"Estimated cost: {sum(tmp)/4000}"
 
 
     def total_cost(self):
 
-        return sum([para["total_cost"] for para in self.paragraphs]) + self.doc_cost
+        cost = (sum([para["total_cost"] for para in self.paragraphs]) + self.doc_cost)
+        return f"Actual cost: {cost}"
 
     
     @staticmethod
@@ -95,9 +117,9 @@ class Document:
          ## Running results
 
         ## Limit prompt length
-        combined_prompt = (prompt["full"]+text)[:min(3750*4,len(prompt["full"]+text))]
+        combined_prompt = (prompt.full+text)[:min(3750*4,len(prompt.full+text))]
         result = openai.Completion.create(
-            model=prompt["model"],
+            model=prompt.model,
             prompt=combined_prompt,
             temperature=0.5,
             max_tokens=500,
@@ -108,7 +130,7 @@ class Document:
 
         ## Removes 2 new lines usually there between query and result
         text = re.sub("^\n\n","",result['choices'][0]['text'])
-        cost = (result["usage"]["total_tokens"]/1000)*MODEL_COST[prompt["model"]]
+        cost = (result["usage"]["total_tokens"]/1000)*MODEL_INFO[prompt.model]['cost']
 
         return text,cost
 
@@ -116,63 +138,53 @@ class Document:
 
 
 
-    def process(self,prompts = [
+    def process(self,prompts = [ Prompt("Main themes",
+                                    "Summarise into top themes in format \n'- [[<theme>]]\n' for the following text:\n\n","text-davinci-002","Key Points"),
+                                    Prompt("Summary", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points"),
+                                    #Prompt("Summary","Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points"),
+                                    Prompt("Key Points","Summarise into key points in format \n'- point\n' for the following text:\n\n","text-davinci-002","text")]):
 
-        {"short": "Main themes",
-                        "full":"Summarise into top themes in format \n'- [[<theme>]]\n' for the following text:\n\n",
-                        "model": "text-davinci-002",
-                        "on":"Key Points"},
-        {"short": "Summary",
-                        "full":"Summarise main concepts within a short concise paragraph the following text:\n\n",
-                        "model": "text-davinci-002",
-                        "on":"Key Points"
-                        },         
-        {"short": "Key Points",
-            "full":"Summarise into key points in format \n'- point\n' for the following text:\n\n",
-            "model": "text-davinci-002",
-                  "on":"text"}]
-                  ):
-
-        # {"short":"Themes",
-        #     "full": "Capture top 3 themes in format \n - 'theme'\n for text:\n\n",
-        #     "model": "text-davinci-002",
-        #         "on":"text"}
-
+       
         print(self.estimated_cost(prompts))
 
-        self.prompts = prompts
+
 
 
         for prompt in prompts:
 
-            if prompt["on"] == "text":
+            if prompt.on == "text":
                 for para in tqdm(self.paragraphs):
                     text, cost = Document.run_open_ai(para['text'],prompt)
-                    para[prompt["short"]] = text
+                    para[prompt.short] = text
                     para['total_cost'] += cost
             
         ## Document level/summary results - done as a separate loop to prevent summary prompt breaking if text not available
 
 
         for prompt in tqdm(prompts):
-            if prompt["on"] != "text":
+            if prompt.on != "text":
 
                 segments = []
                 include_segments = []
 
                 for para in self.paragraphs:
-                    segments.extend(para[prompt["on"]].split("\n"))
+                    segments.extend(para[prompt.on].split("\n"))
 
                 for segment in segments:
                      # remove segmments that are over 200 in length to ensure tokens don't blow out
                     if len(segment) < 200:
                         include_segments.append(segment)
-                #sample 75 key points as this will only use 75*(200/4) = 3750, currently sample is just random but might need to be stratified across paragraph to ensure coverage  
+                #sample 75 key points as this will only use 75*(200/4) = 3750, currently sample is just random but might need to be stratified across paragraph to ensure coverage
+                ## Tech Debt - 75 is based on 4000 tokens, need to do this per model applied for this prompt. Instead make this depend on Prompt which tells us what model is run.
                 sampled_points = np.random.choice(include_segments,min(75,len(include_segments)))
 
-                text, cost = Document.run_open_ai(" ".join([para[prompt["on"]] for para in sampled_points]),prompt)
-                self.doc_results[prompt['short']] = text
+                text, cost = Document.run_open_ai(" ".join(sampled_points),prompt)
+                self.doc_results[prompt.short] = text
                 self.doc_cost += cost
+
+            #Creating sort order based on when prompt was called
+            if prompt not in self.processed_prompts:
+                self.processed_prompts.append(prompt)
 
 
         print(self.total_cost())
@@ -199,10 +211,10 @@ class Document:
                         
                     elif 'Transcript:' in line:
 
-                        for prompt in self.prompts:
+                        for prompt in self.processed_prompts:
 
-                            if prompt["on"] == "text":
-                                f_new.write(f"#### {prompt['short']}:\n{self.paragraphs[result_i][prompt['short']]}\n")
+                            if prompt.on == "text":
+                                f_new.write(f"#### {prompt.short}:\n{self.paragraphs[result_i][prompt.short]}\n")
 
                         f_new.write(f"#### Notes:\n\n")
                         f_new.write("##### ")
@@ -239,12 +251,23 @@ class Document:
 # %%
 
 
-filepath = f"/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/309 – John Carmack —  Doom, Quake, VR, AGI, Programming, Video Games, and Rockets.md"
+filepath = f"/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/005 - A Sports Ministry Idea that Actually Reaches People This One Does.md"
 filepath
 
 doc = Document(filepath)
 
 doc.process()
+
+# %%
+doc.process([Prompt("Summary", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points")])
+
+
+
+# %%
+doc.save()
+
+# %%
+doc.overwrite()
 
 # %%
 ## Analysis on Segment Lengths for Key Points
