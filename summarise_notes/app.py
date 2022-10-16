@@ -86,20 +86,23 @@ class Document:
             file = f.read()
 
             html = markdown.markdown(file)
-            soup = BeautifulSoup(html)
+            self.soup = BeautifulSoup(html)
+            
+        
             
             ## specific to podcast format
             if self.format == "podcast":
-                ## Append first element
-                try:
-                    text = soup.find("h2").find_next("p").get_text()
-                    self.paragraphs.append(dict(text = text,total_cost=0))
+                ## Append first paragraph element (assumes first element is aliase so that is skipped add)
+                    text = self.soup.find("h2").find_next("p").find_next("p").get_text()
+                    if text:
+                        self.paragraphs.append(dict(text = text,total_cost=0))
                     ## don't include last element as no text is after it
-                    for para in [hr.find_next("p") for hr in soup.find_all("hr")[:-1]]:
-                        self.paragraphs.append(dict(text = para.get_text(),total_cost=0))
-                except:
-                    print("Missing element")
-                    print(soup)
+                    for text in [hr.find_next("p").get_text() for hr in self.soup.find_all("hr")[:-1]]:
+                        if text:
+                            self.paragraphs.append(dict(text = text,total_cost=0))
+#                 except:
+#                     print("Missing element")
+#                     print(self.soup)
             else:
                 raise Exception(f"{self.format} is not supported")
     
@@ -276,15 +279,23 @@ def open_soup(filepath):
 
 # %%
 filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/294. Eugenics —  Flawed Thinking Behind Pushed Science.md"
+# filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/John Frusciante Returns, Part 1.md"
 
 
 # %%
+doc.soup.find("h2").find_next("p").find_next("p")
 
 # %%
 doc = Document(filepath)
 doc.process()
 doc.save()
 
+
+# %%
+len(doc.paragraphs)
+
+# %%
+doc.save()
 
 # %%
 doc.overwrite()
