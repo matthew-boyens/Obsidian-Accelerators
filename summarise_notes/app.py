@@ -8,9 +8,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.14.1
 #   kernelspec:
-#     display_name: Python 3.10.1 64-bit
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -91,11 +91,15 @@ class Document:
             ## specific to podcast format
             if self.format == "podcast":
                 ## Append first element
-                text = soup.find("h2").find_next("p").get_text()
-                self.paragraphs.append(dict(text = text,total_cost=0))
-                ## don't include last element as no text is after it
-                for para in [hr.find_next("p") for hr in soup.find_all("hr")[:-1]]:
-                    self.paragraphs.append(dict(text = para.get_text(),total_cost=0))
+                try:
+                    text = soup.find("h2").find_next("p").get_text()
+                    self.paragraphs.append(dict(text = text,total_cost=0))
+                    ## don't include last element as no text is after it
+                    for para in [hr.find_next("p") for hr in soup.find_all("hr")[:-1]]:
+                        self.paragraphs.append(dict(text = para.get_text(),total_cost=0))
+                except:
+                    print("Missing element")
+                    print(soup)
             else:
                 raise Exception(f"{self.format} is not supported")
     
@@ -197,7 +201,7 @@ class Document:
     def save(self):
 
             alias_break_count = 0
-            result_i =0
+            self.para_i = 0
             with open(self.filepath) as f_old, open(self.filepath[:-3] + " + GPT3.md", "w") as f_new:
                 for line in f_old:
                     
@@ -219,11 +223,11 @@ class Document:
                         for prompt in self.processed_prompts:
 
                             if prompt.on == "text":
-                                f_new.write(f"#### {prompt.short}:\n{self.paragraphs[result_i][prompt.short]}\n")
+                                f_new.write(f"#### {prompt.short}:\n{self.paragraphs[self.para_i][prompt.short]}\n")
 
                         f_new.write(f"#### Notes:\n\n")
                         f_new.write("##### ")
-                        result_i +=1
+                        self.para_i +=1
                     elif "---" in line:
                         if alias_break_count>1:
                             f_new.write("####\n")
@@ -231,6 +235,11 @@ class Document:
                             alias_break_count += 1  
                     
                     f_new.write(line)
+
+                if self.para_i == len(self.paragraphs) -1:
+                    self.incorrect_aligment = False
+                else:
+                    self.incorrect_aligment = True
 
                 self.saved = True
 
@@ -243,6 +252,18 @@ class Document:
         else:
             print("Nothing to save")
 
+
+# %%
+
+def open_soup(filepath):
+    
+    with open(filepath) as f:
+        file = f.read()
+
+        html = markdown.markdown(file)
+        return BeautifulSoup(html)
+
+
 # %% [markdown]
 # # Ideas
 # - Create PodcastDocument(Document) class structure
@@ -254,14 +275,55 @@ class Document:
 #     - This would allow the loading of different documents and running compute on them
 
 # %%
+filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/294. Eugenics —  Flawed Thinking Behind Pushed Science.md"
 
 
-filepath = f"/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/274 – Karl Deisseroth —  Depression, Schizophrenia, and Psychiatry.md"
-filepath
+# %%
 
+# %%
 doc = Document(filepath)
-
 doc.process()
+doc.save()
+
+
+# %%
+doc.overwrite()
+
+# %%
+docs = []
+errors = []
+for file in tqdm(files):
+
+    doc = Document(file)
+
+    try:
+        doc.process()
+        doc.save()
+        docs.append(doc)
+    except:
+        errors.append([doc])
+
+
+# %%
+for doc in docs:
+    doc.overwrite()
+
+# %%
+overriden = []
+
+for doc in docs:
+
+    if filename not in overriden:
+        print(filename)
+        print("\n")
+        print(doc.paragraphs[0],"\n",doc.paragraphs[-1])
+
+        if bool(input("Overwrite?") or False):
+            doc.overwrite()
+            overriden.append(filename)
+
+# %%
+doc.process([Prompt("Summary V2", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points")])
 
 # %%
 doc.process([Prompt("Summary V2", "Abstractively Summarise main concepts within a short concise paragraph the following text:\n\n","text-davinci-002","Key Points")])
@@ -269,7 +331,7 @@ doc.process([Prompt("Summary V2", "Abstractively Summarise main concepts within 
 
 
 # %%
-doc.save()
+doc.saved=True
 
 # %%
 doc.overwrite()
