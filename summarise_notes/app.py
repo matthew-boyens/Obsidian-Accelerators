@@ -25,7 +25,6 @@ import markdown
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 
-
 MODEL_INFO = {"text-davinci-002":{"cost":0.0200, "max_tokens":4000}}
 
 # %%
@@ -41,6 +40,7 @@ TOKENS_PER_CHAR = 4
 OUTPUT_TOKENS = 500
 MAX_INPUT_CHARS = (MAX_TOKENS - OUTPUT_TOKENS)*TOKENS_PER_CHAR
 
+USD_to_AUD = 1.6
 MAX_INPUT_CHARS
 
 
@@ -142,7 +142,7 @@ class Document:
 
         ## Removes 2 new lines usually there between query and result
         text = re.sub("^\n\n","",result['choices'][0]['text'])
-        cost = (result["usage"]["total_tokens"]/1000)*MODEL_INFO[prompt.model]['cost']
+        cost = (result["usage"]["total_tokens"]/1000)*MODEL_INFO[prompt.model]['cost']* USD_to_AUD
 
         return text,cost
 
@@ -278,18 +278,18 @@ def open_soup(filepath):
 #     - This would allow the loading of different documents and running compute on them
 
 # %%
-filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/294. Eugenics —  Flawed Thinking Behind Pushed Science.md"
+filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/331 – Balaji Srinivasan —  How to Fix Government, Twitter, Science, and the FDA.md"
 # filepath = "/Users/mboyens/Documents/SecondBrain/Readwise/Podcasts/John Frusciante Returns, Part 1.md"
 
-
-# %%
-doc.soup.find("h2").find_next("p").find_next("p")
 
 # %%
 doc = Document(filepath)
 doc.process()
 doc.save()
 
+
+# %%
+1.3*USD_to_AUD
 
 # %%
 len(doc.paragraphs)
