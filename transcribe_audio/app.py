@@ -26,7 +26,7 @@ async def analyze_audio(file, options):
         options = {"punctuate": True}
     deepgram = Deepgram(os.environ["DEEPGRAM_API_KEY"])
 
-    source = {"buffer": file, "mimetype": "audio/wav"}
+    source = {"buffer": file, "mimetype": audio_file.type}
     response = await deepgram.transcription.prerecorded(source, options)
     return response
 
@@ -36,7 +36,7 @@ def form_select(opt):
 
 
 with st.sidebar:
-    audio_file = st.file_uploader("Upload audio file/s", type=["wav"])
+    audio_file = st.file_uploader("Upload audio file/s", type=["wav", "m4a"])
     language = st.selectbox("Select language of the audio", LANGUAGE.keys())
     model = st.selectbox("model", ["whisper", "general"])
     choice = st.radio("What would you like to do", ["Search audio", "Analyze audio"])
