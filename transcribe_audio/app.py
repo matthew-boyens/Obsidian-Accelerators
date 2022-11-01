@@ -39,20 +39,23 @@ with st.sidebar:
     audio_file = st.file_uploader("Upload audio file/s", type=["wav", "m4a"])
     language = st.selectbox("Select language of the audio", LANGUAGE.keys())
     model = st.selectbox("model", ["whisper", "general"])
+    tier = st.selectbox("tier", ["general", "enhanced"])
     choice = st.radio("What would you like to do", ["Search audio", "Analyze audio"])
     if choice == "Search audio":
         search = st.text_input("Enter search term")
         search_clicked = st.button("Search audio")
     elif choice == "Analyze audio":
+
+        mult_select_options = [
+            ("punctuate", "punctuate"),
+            ("profanity_filter", "Remove profanity"),
+            ("diarize", "Is a conversation"),
+            ("numerals", "numerals"),
+        ]
         options = st.multiselect(
             "Select options for analysis",
-            [
-                ("punctuate", "punctuate"),
-                ("profanity_filter", "Remove profanity"),
-                ("diarize", "Is a conversation"),
-                ("numerals", "numerals"),
-                ("tier", "enhanced"),
-            ],
+            mult_select_options,
+            default=mult_select_options,
             format_func=form_select,
         )
         clicked = st.button("Analyze")
@@ -67,6 +70,7 @@ if clicked:
         )
         analysis_options["language"] = LANGUAGE[language]
         analysis_options["model"] = model
+        analysis_options["tier"] = tier
         print(analysis_options)
         st.header("Transcript")
         with st.spinner("Analyzing audio..."):
